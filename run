@@ -1,0 +1,9 @@
+#!/bin/bash
+
+mkdir -p order_book/proto_generate
+
+python -m grpc_tools.protoc \
+    -I./protos \
+    --python_out=order_book/proto_generate \
+    --grpc_python_out=order_book/proto_generate \
+    protos/order_book/order_book_service.proto
