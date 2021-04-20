@@ -29,7 +29,7 @@ class SingleSymbolOrderBook:
         self._initial_http_address = INITIALIZATION_HTTP_ADDRESS.format(symbol.upper())
 
     async def initialize(self, websocket):
-        logger.info("Initializing.")
+        logger.info(f"{self._symbol} --- initializing.")
         contents = await asyncio.to_thread(urllib.request.urlopen(self._initial_http_address).read)
         snapshot = json.loads(contents)
         last_update_id = snapshot["lastUpdateId"]
@@ -40,7 +40,7 @@ class SingleSymbolOrderBook:
             self._last_update_id = last_update_id
             self._bid_order_book.update(bid_order_book)
             self._ask_order_book.update(ask_order_book)
-        logger.info("Initialization complete.")
+        logger.info(f"{self._symbol} --- initialization complete.")
 
     def _update(self, patch):
         self._last_update_id = patch["u"]
@@ -52,12 +52,13 @@ class SingleSymbolOrderBook:
                     order_book[price] = quantity
 
     async def update(self, websocket):
-        logger.info("Updating")
+        logger.info(f"{self._symbol} updating.")
+
         time.sleep(1)
         contents = await websocket.recv()
         patch = json.loads(contents)
         if patch["u"] <= self._last_update_id:
-            logger.warning("Drop outdated patches.")
+            logger.warning(f"{self._symbol} --- drop outdated patches.")
             return
 
         patch["a"] = map(lambda order: list(map(float, order)), patch["a"])
@@ -75,9 +76,9 @@ class SingleSymbolOrderBook:
 
             with self._lock:
                 self._update(patch)
-        logger.debug(self._ask_order_book)
-        logger.debug(self._bid_order_book)
-        logger.info("Updating complete.")
+        logger.debug(f"{self._symbol} --- {self._ask_order_book}")
+        logger.debug(f"{self._symbol} --- {self._bid_order_book}")
+        logger.info(f"{self._symbol} --- updating complete.")
 
     async def read(self):
         return {"bids": self._bid_order_book, "asks": self._ask_order_book}
@@ -120,5 +121,5 @@ class OrderBookManager:
 if __name__ == "__main__":
     logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
     logging.getLogger().addHandler(logging.StreamHandler())
-    order_book_manager = OrderBookManager(["bnbbtc"])
+    order_book_manager = OrderBookManager(["bnbbtc", "ethbusd"])
     asyncio.run(order_book_manager.run())
