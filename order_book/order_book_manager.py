@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import threading
-import time
 import urllib.request
 
 import websockets
@@ -10,7 +9,9 @@ from sortedcontainers import SortedDict
 
 logger = logging.getLogger(__name__)
 WEBSOCKET_ADDRESS = "wss://stream.binance.com:9443/ws/{}@depth"
-INITIALIZATION_HTTP_ADDRESS = "https://api.binance.com/api/v3/depth?symbol={}&limit=1000"
+INITIALIZATION_HTTP_ADDRESS = (
+    "https://api.binance.com/api/v3/depth?symbol={}&limit=1000"
+)
 
 
 class IllegalPatchException(Exception):
@@ -30,11 +31,17 @@ class SingleSymbolOrderBook:
 
     async def initialize(self, websocket):
         logger.info(f"{self._symbol} --- initializing.")
-        contents = await asyncio.to_thread(urllib.request.urlopen(self._initial_http_address).read)
+        contents = await asyncio.to_thread(
+            urllib.request.urlopen(self._initial_http_address).read
+        )
         snapshot = json.loads(contents)
         last_update_id = snapshot["lastUpdateId"]
-        bid_order_book = list(map(lambda order: list(map(float, order)), snapshot["bids"]))
-        ask_order_book = list(map(lambda order: list(map(float, order)), snapshot["asks"]))
+        bid_order_book = list(
+            map(lambda order: list(map(float, order)), snapshot["bids"])
+        )
+        ask_order_book = list(
+            map(lambda order: list(map(float, order)), snapshot["asks"])
+        )
 
         with self._lock:
             self._last_update_id = last_update_id
@@ -44,7 +51,10 @@ class SingleSymbolOrderBook:
 
     def _update(self, patch):
         self._last_update_id = patch["u"]
-        for key, order_book in [("a", self._ask_order_book), ("b", self._bid_order_book)]:
+        for key, order_book in [
+            ("a", self._ask_order_book),
+            ("b", self._bid_order_book),
+        ]:
             for price, quantity in patch[key]:
                 if not quantity:
                     order_book.pop(price, None)
@@ -54,7 +64,6 @@ class SingleSymbolOrderBook:
     async def update(self, websocket):
         logger.info(f"{self._symbol} updating.")
 
-        time.sleep(1)
         contents = await websocket.recv()
         patch = json.loads(contents)
         if patch["u"] <= self._last_update_id:
@@ -66,13 +75,17 @@ class SingleSymbolOrderBook:
 
         if self._first_patch:
             if not (patch["U"] <= self._last_update_id + 1 <= patch["u"]):
-                raise IllegalPatchException("First update patch does not match last_update_id.")
+                raise IllegalPatchException(
+                    "First update patch does not match last_update_id."
+                )
             with self._lock:
                 self._first_patch = False
                 self._update(patch)
         else:
             if patch["U"] != self._last_update_id + 1:
-                raise IllegalPatchException("Missing update event between last_update_id and coming update.")
+                raise IllegalPatchException(
+                    "Missing update event between last_update_id and coming update."
+                )
 
             with self._lock:
                 self._update(patch)
@@ -91,7 +104,6 @@ class SingleSymbolOrderBook:
 
 
 class OrderBookManager:
-
     def __init__(self, symbols=None):
         self._symbols = symbols
         self._tasks = {}
@@ -119,7 +131,7 @@ class OrderBookManager:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
+    logging.basicConfig(filename="example.log", encoding="utf-8", level=logging.DEBUG)
     logging.getLogger().addHandler(logging.StreamHandler())
     order_book_manager = OrderBookManager(["bnbbtc", "ethbusd"])
     asyncio.run(order_book_manager.run())

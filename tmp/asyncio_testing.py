@@ -21,7 +21,9 @@ async def main():
 
 def main2():
     t0 = time.time()
-    a = urllib.request.urlopen("https://api.binance.com/api/v3/depth?symbol=BNBBTC&limit=1000 ")
+    a = urllib.request.urlopen(
+        "https://api.binance.com/api/v3/depth?symbol=BNBBTC&limit=1000 "
+    )
     t1 = time.time()
     a.read()
     t2 = time.time()
@@ -31,7 +33,8 @@ def main2():
 async def main1():
     t0 = time.time()
     task = asyncio.to_thread(
-        urllib.request.urlopen, "https://api.binance.com/api/v3/depth?symbol=BNBBTC&limit=1000 "
+        urllib.request.urlopen,
+        "https://api.binance.com/api/v3/depth?symbol=BNBBTC&limit=1000 ",
     )
     t1 = time.time()
     print(t1 - t0)
