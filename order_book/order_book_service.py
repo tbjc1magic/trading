@@ -6,10 +6,18 @@ from grpc import aio
 from grpc_reflection.v1alpha import reflection
 
 from order_book_manager import OrderBookManager
-from proto_generate import order_book_service_pb2
-from proto_generate import order_book_service_pb2_grpc
+from proto.order_book import order_book_service_pb2
+from proto.order_book import order_book_service_pb2_grpc
 
 logger = logging.getLogger(__name__)
+
+
+class InsufficientOrdersInTheMarket(Exception):
+    pass
+
+
+class UnsupportedOrderType(Exception):
+    pass
 
 
 class OrderBookServier(order_book_service_pb2_grpc.OrderBookServicer):
@@ -21,17 +29,52 @@ class OrderBookServier(order_book_service_pb2_grpc.OrderBookServicer):
     ):
         logger.info(f"FetchOrderBook request {request}")
 
-        order_books = await self._order_book_manager.read("bnbbtc")
-        print(order_books)
-
+        order_books = await self._order_book_manager.read(request.symbol)
         response = order_book_service_pb2.FetchOrderBookResponse(
-            orders=[order_book_service_pb2.Order(price=1.0, quantity=1.0, order_type=1)]
+            orders=[
+                order_book_service_pb2.Order(
+                    price=p, quantity=q, order_type=order_book_service_pb2.OrderType.ASK
+                )
+                for p, q in order_books["asks"].items()
+            ]
+            + [
+                order_book_service_pb2.Order(
+                    price=p * -1,
+                    quantity=q,
+                    order_type=order_book_service_pb2.OrderType.BID,
+                )
+                for p, q in order_books["bids"].items()
+            ]
         )
         logger.info(f"FetchOrderBook response {response}")
         return response
 
+    async def GetWorstOrderPrice(
+        self, request: order_book_service_pb2.FetchOrderBookRequest, context
+    ):
+        order_books = await self._order_book_manager.read(request.symbol)
+        quantity = 0
+        if request.order_type == order_book_service_pb2.OrderType.ASK:
+            order_book = order_books["asks"]
+            for key in iter(order_book):
+                quantity += order_book[key]
+                if quantity >= request.quantity:
+                    return order_book_service_pb2.GetWorstOrderPriceResponse(price=key)
+        elif request.order_type == order_book_service_pb2.OrderType.BID:
+            order_book = order_books["bids"]
+            for key in iter(order_book):
+                quantity += order_book[key]
+                if quantity >= request.quantity:
+                    return order_book_service_pb2.GetWorstOrderPriceResponse(
+                        price=key * -1
+                    )
+        else:
+            raise UnsupportedOrderType()
 
-async def serve_order_book(order_book_manager):
+        raise InsufficientOrdersInTheMarket()
+
+
+async def serve_order_book():
     order_book_manager = OrderBookManager(["bnbbtc", "ethbusd"])
     server = aio.server()
     order_book_service_pb2_grpc.add_OrderBookServicer_to_server(
@@ -55,4 +98,4 @@ if __name__ == "__main__":
     os.environ["GRPC_TRACE"] = "all"
     # os.environ["GRPC_VERBOSITY"] = "DEBUG"
     print("hello")
-    asyncio.run(serve_order_book(None))
+    asyncio.run(serve_order_book())

@@ -37,7 +37,7 @@ class SingleSymbolOrderBook:
         snapshot = json.loads(contents)
         last_update_id = snapshot["lastUpdateId"]
         bid_order_book = list(
-            map(lambda order: list(map(float, order)), snapshot["bids"])
+            map(lambda order: (float(order[0]) * -1, float(order[1])), snapshot["bids"])
         )
         ask_order_book = list(
             map(lambda order: list(map(float, order)), snapshot["asks"])
@@ -71,7 +71,9 @@ class SingleSymbolOrderBook:
             return
 
         patch["a"] = map(lambda order: list(map(float, order)), patch["a"])
-        patch["b"] = map(lambda order: list(map(float, order)), patch["b"])
+        patch["b"] = map(
+            lambda order: (float(order[0]) * -1, float(order[1])), patch["b"]
+        )
 
         if self._first_patch:
             if not (patch["U"] <= self._last_update_id + 1 <= patch["u"]):

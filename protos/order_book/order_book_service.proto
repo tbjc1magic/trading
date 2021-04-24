@@ -3,10 +3,11 @@ syntax = "proto3";
 service OrderBook {
   // Get the whole order book.
   rpc FetchOrderBook(FetchOrderBookRequest) returns (FetchOrderBookResponse) {}
+
+  // Get the worst price for the limit order
+  rpc GetWorstOrderPrice(GetWorstOrderPriceRequest) returns (GetWorstOrderPriceResponse) {}
 }
 
-message FetchOrderBookRequest {
-}
 
 enum OrderType {
   UNKNOWN = 0;
@@ -20,6 +21,20 @@ message Order {
   float quantity = 3;
 }
 
+message FetchOrderBookRequest {
+  string symbol = 1;
+}
+
 message FetchOrderBookResponse {
   repeated Order orders = 1;
+}
+
+message GetWorstOrderPriceRequest {
+  string symbol = 1;
+  float quantity = 2;
+  OrderType order_type = 3;
+}
+
+message GetWorstOrderPriceResponse {
+  float price = 1;
 }
