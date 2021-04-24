@@ -1,9 +1,12 @@
 #!/bin/bash
 
-mkdir -p proto_generate/proto
+mkdir -p proto_generate
 
 python -m grpc_tools.protoc \
     -I./protos \
-    --python_out=proto_generate/proto \
-    --grpc_python_out=proto_generate/proto \
-    protos/order_book/order_book_service.proto
+    --python_out=proto_generate \
+    --grpc_python_out=proto_generate \
+    protos/order_book_protos/order_book_service.proto
+
+PYTHONPATH="$PWD/proto_generate:$PYTHONPATH"
+python order_book/order_book_service.py

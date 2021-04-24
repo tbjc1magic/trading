@@ -6,8 +6,8 @@ from grpc import aio
 from grpc_reflection.v1alpha import reflection
 
 from order_book_manager import OrderBookManager
-from proto.order_book import order_book_service_pb2
-from proto.order_book import order_book_service_pb2_grpc
+from order_book_protos import order_book_service_pb2
+from order_book_protos import order_book_service_pb2_grpc
 
 logger = logging.getLogger(__name__)
 
