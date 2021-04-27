@@ -1,9 +1,11 @@
 import asyncio
 import json
 import logging
+import os
 import threading
 import urllib.request
 
+import pymongo
 import websockets
 from sortedcontainers import SortedDict
 
@@ -12,6 +14,8 @@ WEBSOCKET_ADDRESS = "wss://stream.binance.com:9443/ws/{}@depth"
 INITIALIZATION_HTTP_ADDRESS = (
     "https://api.binance.com/api/v3/depth?symbol={}&limit=1000"
 )
+ORDER_BOOK_TABLE_NAME = "order_book"
+ORDER_BOOK_DB_NAME = "crypto_db"
 
 
 class IllegalPatchException(Exception):
@@ -19,7 +23,7 @@ class IllegalPatchException(Exception):
 
 
 class SingleSymbolOrderBook:
-    def __init__(self, symbol="bnbbtc"):
+    def __init__(self, symbol="bnbbtc", save_data=False):
         self._symbol = symbol
         self._bid_order_book = SortedDict()
         self._ask_order_book = SortedDict()
@@ -28,6 +32,13 @@ class SingleSymbolOrderBook:
         self._first_patch = True
         self._websocket_address = WEBSOCKET_ADDRESS.format(symbol)
         self._initial_http_address = INITIALIZATION_HTTP_ADDRESS.format(symbol.upper())
+
+        mongodb_user = os.getenv("MONGODB_USER").strip('"')
+        mongodb_pwd = os.getenv("MONGODB_PWD").strip('"')
+        mongodb_host = os.getenv("MONGODB_HOST").strip('"')
+        client_url = f"mongodb://{mongodb_user}:{mongodb_pwd}@{mongodb_host}/{ORDER_BOOK_DB_NAME}"
+        client = pymongo.MongoClient(client_url)
+        self._db = client[ORDER_BOOK_DB_NAME]
 
     async def initialize(self, websocket):
         logger.info(f"{self._symbol} --- initializing.")
@@ -61,6 +72,17 @@ class SingleSymbolOrderBook:
                 else:
                     order_book[price] = quantity
 
+    async def write_to_db(self, patch):
+        data = {
+            "event_time": patch["E"],
+            "symbol": patch["s"],
+            "first_update_id": patch["U"],
+            "final_update_id": patch["u"],
+            "asks": json.dumps(self._ask_order_book),
+            "bids": json.dumps(self._bid_order_book),
+        }
+        await asyncio.to_thread(self._db[ORDER_BOOK_TABLE_NAME].insert_one, data)
+
     async def update(self, websocket):
         logger.info(f"{self._symbol} updating.")
 
@@ -91,6 +113,8 @@ class SingleSymbolOrderBook:
 
             with self._lock:
                 self._update(patch)
+
+        await self.write_to_db(patch)
         logger.debug(f"{self._symbol} --- {self._ask_order_book}")
         logger.debug(f"{self._symbol} --- {self._bid_order_book}")
         logger.info(f"{self._symbol} --- updating complete.")
@@ -106,10 +130,11 @@ class SingleSymbolOrderBook:
 
 
 class OrderBookManager:
-    def __init__(self, symbols=None):
+    def __init__(self, symbols=None, save_data=False):
         self._symbols = symbols
         self._tasks = {}
         self._order_books = {}
+        self._save_data = save_data
 
     async def start(self, symbol=None):
         """
@@ -117,7 +142,7 @@ class OrderBookManager:
         :param symbol:
         :return:
         """
-        order_book = SingleSymbolOrderBook(symbol)
+        order_book = SingleSymbolOrderBook(symbol, save_data=self._save_data)
         self._order_books[symbol] = order_book
         self._tasks[symbol] = asyncio.create_task(order_book.run())
 

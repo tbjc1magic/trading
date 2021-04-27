@@ -75,7 +75,7 @@ class OrderBookServier(order_book_service_pb2_grpc.OrderBookServicer):
 
 
 async def serve_order_book():
-    order_book_manager = OrderBookManager(["bnbbtc", "ethbusd"])
+    order_book_manager = OrderBookManager(["bnbbtc", "ethbusd"], save_data=True)
     server = aio.server()
     order_book_service_pb2_grpc.add_OrderBookServicer_to_server(
         OrderBookServier(order_book_manager), server
