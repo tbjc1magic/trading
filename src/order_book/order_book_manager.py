@@ -1,12 +1,13 @@
 import asyncio
 import json
 import logging
-import os
 import threading
 import urllib.request
 
-import pymongo
+import grpc
 import websockets
+from data_collector_protos import data_collector_service_pb2
+from data_collector_protos import data_collector_service_pb2_grpc
 from sortedcontainers import SortedDict
 
 logger = logging.getLogger(__name__)
@@ -14,8 +15,6 @@ WEBSOCKET_ADDRESS = "wss://stream.binance.com:9443/ws/{}@depth"
 INITIALIZATION_HTTP_ADDRESS = (
     "https://api.binance.com/api/v3/depth?symbol={}&limit=1000"
 )
-ORDER_BOOK_TABLE_NAME = "order_book"
-ORDER_BOOK_DB_NAME = "crypto_db"
 
 
 class IllegalPatchException(Exception):
@@ -33,12 +32,8 @@ class SingleSymbolOrderBook:
         self._websocket_address = WEBSOCKET_ADDRESS.format(symbol)
         self._initial_http_address = INITIALIZATION_HTTP_ADDRESS.format(symbol.upper())
 
-        mongodb_user = os.getenv("MONGODB_USER").strip('"')
-        mongodb_pwd = os.getenv("MONGODB_PWD").strip('"')
-        mongodb_host = os.getenv("MONGODB_HOST").strip('"')
-        client_url = f"mongodb://{mongodb_user}:{mongodb_pwd}@{mongodb_host}/{ORDER_BOOK_DB_NAME}"
-        client = pymongo.MongoClient(client_url)
-        self._db = client[ORDER_BOOK_DB_NAME]
+        channel = grpc.insecure_channel("192.168.86.51:8889")
+        self._db = data_collector_service_pb2_grpc.DataCollectorStub(channel)
 
     async def initialize(self, websocket):
         logger.info(f"{self._symbol} --- initializing.")
@@ -73,15 +68,21 @@ class SingleSymbolOrderBook:
                     order_book[price] = quantity
 
     async def write_to_db(self, patch):
+        logger.info(f"{self._symbol} writing to DB.")
         data = {
             "event_time": patch["E"],
             "symbol": patch["s"],
             "first_update_id": patch["U"],
             "final_update_id": patch["u"],
-            "asks": json.dumps(self._ask_order_book),
-            "bids": json.dumps(self._bid_order_book),
+            "asks": self._ask_order_book,
+            "bids": self._bid_order_book,
         }
-        await asyncio.to_thread(self._db[ORDER_BOOK_TABLE_NAME].insert_one, data)
+        self._db.SaveData(
+            data_collector_service_pb2.SaveDataRequest(
+                data_type=f"order_book_{patch['s']}", log_message=json.dumps(data)
+            )
+        )
+        logger.info(f"{self._symbol} writing finished.")
 
     async def update(self, websocket):
         logger.info(f"{self._symbol} updating.")

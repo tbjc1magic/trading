@@ -4,10 +4,10 @@ import os
 
 from grpc import aio
 from grpc_reflection.v1alpha import reflection
-
-from order_book_manager import OrderBookManager
 from order_book_protos import order_book_service_pb2
 from order_book_protos import order_book_service_pb2_grpc
+
+from order_book_manager import OrderBookManager
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class OrderBookServier(order_book_service_pb2_grpc.OrderBookServicer):
                 for p, q in order_books["bids"].items()
             ]
         )
-        logger.info(f"FetchOrderBook response {response}")
+        logger.info(f"FetchOrderBook response {request.symbol}")
         return response
 
     async def GetWorstOrderPrice(
@@ -93,7 +93,10 @@ async def serve_order_book():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(filename="example.log", encoding="utf-8", level=logging.ERROR)
+    format = "%(asctime)-15s %(message)s"
+    logging.basicConfig(
+        filename="example.log", format=format, encoding="utf-8", level=logging.INFO
+    )
     logging.getLogger().addHandler(logging.StreamHandler())
     os.environ["GRPC_TRACE"] = "all"
     # os.environ["GRPC_VERBOSITY"] = "DEBUG"
