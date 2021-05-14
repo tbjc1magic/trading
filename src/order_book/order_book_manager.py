@@ -3,7 +3,6 @@ import json
 import logging
 import threading
 import urllib.request
-import zlib
 import grpc
 import websockets
 from data_collector_protos import data_collector_service_pb2
@@ -77,12 +76,10 @@ class SingleSymbolOrderBook:
             "asks": self._ask_order_book,
             "bids": self._bid_order_book,
         }
-        self._db.SaveData(
-            data_collector_service_pb2.SaveDataRequest(
-                data_type=f"order_book_{patch['s']}",
-                log_message=zlib.compress(json.dumps(data)),
-            )
+        save_data_request = data_collector_service_pb2.SaveDataRequest(
+            data_type=f"order_book_{patch['s']}", log_message=json.dumps(data)
         )
+        self._db.SaveData(save_data_request)
         logger.info(f"{self._symbol} writing finished.")
 
     async def update(self, websocket):
@@ -156,7 +153,7 @@ class OrderBookManager:
             await self.start(symbol)
 
         while self._tasks:
-            await asyncio.wait(self._tasks.values())
+            await asyncio.gather(*self._tasks.values())
 
 
 if __name__ == "__main__":
