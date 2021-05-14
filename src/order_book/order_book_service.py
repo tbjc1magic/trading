@@ -87,9 +87,7 @@ async def serve_order_book():
     reflection.enable_server_reflection(service_names, server)
     server.add_insecure_port("[::]:50051")
     await server.start()
-    t1 = asyncio.create_task(server.wait_for_termination())
-    t2 = asyncio.create_task(order_book_manager.run())
-    await asyncio.Event().wait()
+    await asyncio.gather(server.wait_for_termination(), order_book_manager.run())
 
 
 if __name__ == "__main__":
