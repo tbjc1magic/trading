@@ -3,6 +3,7 @@ import json
 import logging
 import threading
 import urllib.request
+
 import grpc
 import websockets
 from data_collector_protos import data_collector_service_pb2
@@ -21,7 +22,7 @@ class IllegalPatchException(Exception):
 
 
 class SingleSymbolOrderBook:
-    def __init__(self, symbol="bnbbtc", save_data=False):
+    def __init__(self, symbol="bnbbtc", save_data=False, data_collector_address=None):
         self._symbol = symbol
         self._bid_order_book = SortedDict()
         self._ask_order_book = SortedDict()
@@ -31,7 +32,7 @@ class SingleSymbolOrderBook:
         self._websocket_address = WEBSOCKET_ADDRESS.format(symbol)
         self._initial_http_address = INITIALIZATION_HTTP_ADDRESS.format(symbol.upper())
 
-        channel = grpc.insecure_channel("192.168.86.51:8889")
+        channel = grpc.insecure_channel(data_collector_address)
         self._db = data_collector_service_pb2_grpc.DataCollectorStub(channel)
 
     async def initialize(self, websocket):
@@ -129,11 +130,12 @@ class SingleSymbolOrderBook:
 
 
 class OrderBookManager:
-    def __init__(self, symbols=None, save_data=False):
+    def __init__(self, symbols=None, save_data=False, data_collector_address=None):
         self._symbols = symbols
         self._tasks = {}
         self._order_books = {}
         self._save_data = save_data
+        self._data_collector_address = data_collector_address
 
     async def start(self, symbol=None):
         """
@@ -141,7 +143,11 @@ class OrderBookManager:
         :param symbol:
         :return:
         """
-        order_book = SingleSymbolOrderBook(symbol, save_data=self._save_data)
+        order_book = SingleSymbolOrderBook(
+            symbol,
+            save_data=self._save_data,
+            data_collector_address=self._data_collector_address,
+        )
         self._order_books[symbol] = order_book
         self._tasks[symbol] = asyncio.create_task(order_book.run())
 

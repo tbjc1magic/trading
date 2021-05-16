@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import logging
 import os
@@ -74,8 +75,12 @@ class OrderBookServier(order_book_service_pb2_grpc.OrderBookServicer):
         raise InsufficientOrdersInTheMarket()
 
 
-async def serve_order_book():
-    order_book_manager = OrderBookManager(["bnbbtc", "ethbusd"], save_data=True)
+async def serve_order_book(port, data_collector_address="localhost:9999"):
+    order_book_manager = OrderBookManager(
+        ["bnbbtc", "ethbusd"],
+        save_data=True,
+        data_collector_address=data_collector_address,
+    )
     server = aio.server()
     order_book_service_pb2_grpc.add_OrderBookServicer_to_server(
         OrderBookServier(order_book_manager), server
@@ -85,18 +90,27 @@ async def serve_order_book():
         reflection.SERVICE_NAME,
     )
     reflection.enable_server_reflection(service_names, server)
-    server.add_insecure_port("[::]:50051")
+    server.add_insecure_port(f"[::]:{port}")
     await server.start()
     await asyncio.gather(server.wait_for_termination(), order_book_manager.run())
 
 
 if __name__ == "__main__":
-    format = "%(asctime)-15s %(message)s"
+    parser = argparse.ArgumentParser(description="Process some integers.")
+    parser.add_argument(
+        "--port", type=int, default=9999, help="port of the grpc server."
+    )
+    parser.add_argument(
+        "--data_collector_address",
+        type=str,
+        default="192.168.86.39:9998",
+        help="address of the data collector grpc service.",
+    )
+    args = parser.parse_args()
+    fmt = "%(asctime)-15s %(message)s"
     logging.basicConfig(
-        filename="example.log", format=format, encoding="utf-8", level=logging.INFO
+        filename="example.log", format=fmt, encoding="utf-8", level=logging.INFO
     )
     logging.getLogger().addHandler(logging.StreamHandler())
     os.environ["GRPC_TRACE"] = "all"
-    # os.environ["GRPC_VERBOSITY"] = "DEBUG"
-    print("hello")
-    asyncio.run(serve_order_book())
+    asyncio.run(serve_order_book(args.port, args.data_collector_address))
