@@ -22,7 +22,9 @@ class IllegalPatchException(Exception):
 
 
 class SingleSymbolOrderBook:
-    def __init__(self, symbol="bnbbtc", save_data=False, data_collector_address=None):
+    def __init__(
+        self, symbol="bnbbtc", save_data=False, data_collector_address=None, server=None
+    ):
         self._symbol = symbol
         self._bid_order_book = SortedDict()
         self._ask_order_book = SortedDict()
@@ -34,6 +36,7 @@ class SingleSymbolOrderBook:
 
         channel = grpc.insecure_channel(data_collector_address)
         self._db = data_collector_service_pb2_grpc.DataCollectorStub(channel)
+        self._server = server
 
     async def initialize(self, websocket):
         logger.info(f"{self._symbol} --- initializing.")
@@ -126,16 +129,23 @@ class SingleSymbolOrderBook:
         async with websockets.connect(self._websocket_address) as websocket:
             await self.initialize(websocket)
             while True:
-                await self.update(websocket)
+                try:
+                    await self.update(websocket)
+                except Exception as e:
+                    await self._server.stop(grace=0)
+                    raise Exception(f"Update failed: {e}")
 
 
 class OrderBookManager:
-    def __init__(self, symbols=None, save_data=False, data_collector_address=None):
+    def __init__(
+        self, symbols=None, save_data=False, data_collector_address=None, server=None
+    ):
         self._symbols = symbols
         self._tasks = {}
         self._order_books = {}
         self._save_data = save_data
         self._data_collector_address = data_collector_address
+        self._server = server
 
     async def start(self, symbol=None):
         """
@@ -147,6 +157,7 @@ class OrderBookManager:
             symbol,
             save_data=self._save_data,
             data_collector_address=self._data_collector_address,
+            server=self._server,
         )
         self._order_books[symbol] = order_book
         self._tasks[symbol] = asyncio.create_task(order_book.run())
