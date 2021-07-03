@@ -9,5 +9,7 @@ python -m grpc_tools.protoc \
     protos/**/*.proto
 
 export PYTHONPATH="$PWD/proto_generate:$PYTHONPATH"
+#python src/order_book/order_book_service.py \
+#  --data_collector_address="192.168.86.55:9998"
 python src/order_book/order_book_service.py \
-  --data_collector_address="192.168.86.39:9998"
+  --data_collector_address="localhost:9998"

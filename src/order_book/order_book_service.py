@@ -76,12 +76,13 @@ class OrderBookServier(order_book_service_pb2_grpc.OrderBookServicer):
 
 
 async def serve_order_book(port, data_collector_address="localhost:9999"):
+    server = aio.server()
     order_book_manager = OrderBookManager(
-        ["bnbbtc", "ethbusd"],
+        ["bnbbtc", "ethbusd", "dogeusdt"],
         save_data=True,
         data_collector_address=data_collector_address,
+        server=server,
     )
-    server = aio.server()
     order_book_service_pb2_grpc.add_OrderBookServicer_to_server(
         OrderBookServier(order_book_manager), server
     )
@@ -103,7 +104,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data_collector_address",
         type=str,
-        default="192.168.86.39:9998",
+        default="192.168.86.55:9998",
         help="address of the data collector grpc service.",
     )
     args = parser.parse_args()
@@ -113,4 +114,12 @@ if __name__ == "__main__":
     )
     logging.getLogger().addHandler(logging.StreamHandler())
     os.environ["GRPC_TRACE"] = "all"
-    asyncio.run(serve_order_book(args.port, args.data_collector_address))
+    while True:
+        try:
+            asyncio.run(serve_order_book(args.port, args.data_collector_address))
+        except KeyboardInterrupt:
+            logging.info("Exit order book service.")
+            break
+        except Exception as e:
+            logging.error(f"Order book failed: {e}")
+            logging.info("Will reboot order book service.")
